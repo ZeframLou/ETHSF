@@ -1,4 +1,5 @@
-# Planck -- Supercharged Shorting Tool (TESTING IS YET TO BE STARTED)
+# Planck -- Supercharged Shorting Tool
+Deployed on Kovan and testing is yet to be started.
 
 **Planck** is a powerful decentralized financial instrument for **short-selling** Ether and ERC-20 tokens. It is powered by **Dharma Protocol** and **Kyber Network**.
 
