@@ -133,17 +133,20 @@ contract Portfolio is Ownable {
 
         (, slippage) = kyber.getExpectedRate(dai, borrowedToken, amountToRepay);
         daiToConvert = PRECISION.mul(amountToRepay).div(slippage);
+        
 
-        if (daiToConvert >= collateralInDAI) {
+        if (daiToConvert <= collateralInDAI) {
             (, slippage) = kyber.getExpectedRate(dai, borrowedToken, daiToConvert);
-            amountRepaid = amountRepaid.add(kyber.tradeWithHint(dai, daiToConvert, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
+            kyber.tradeWithHint(dai, daiToConvert, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
+            amountRepaid = amountRepaid.add(repaymentRouter.repay(agreementId, amountToRepay, creditorAddress));
             collateralInDAI = collateralInDAI.sub(daiToConvert);
             dai.transfer(owner, dai.balanceOf(owner));
             return amountRepaid;
         }
 
         (, slippage) = kyber.getExpectedRate(dai, borrowedToken, collateralInDAI);
-        amountRepaid = amountRepaid.add(kyber.tradeWithHint(dai, collateralInDAI, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
+        kyber.tradeWithHint(dai, collateralInDAI, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
+        amountRepaid = amountRepaid.add(repaymentRouter.repay(agreementId, slippage.mul(collateralInDAI).div(PRECISION), creditorAddress));
         collateralInDAI = collateralInDAI.sub(collateralInDAI);
         dai.transfer(owner, dai.balanceOf(owner));
         return amountRepaid;
