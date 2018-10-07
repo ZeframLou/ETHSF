@@ -106,6 +106,8 @@ contract Portfolio is Ownable {
         bytes memory hint;
         uint256 amountRedeemed;
         uint256 amountRepaid;
+        uint256 amountToRepay;
+        
 
         // sell all assets into the token owed to the creditor
         for (uint256 i = 0; i < assetList.length; i++) {
@@ -114,14 +116,37 @@ contract Portfolio is Ownable {
             amountRedeemed = amountRedeemed.add(kyber.tradeWithHint(ERC20(assetList[i]), assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
         }
 
-        // if redeemed amount is enough to pay the creditor, pay the creditor the owed amount and pay the debtor the excess
         amountRepaid = repaymentRouter.repay(
             agreementId,
             termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)),
             creditorAddress);
 
-        // pay the debtor the excess amount
-        borrowedToken.transfer(owner, borrowedToken.balanceOf(owner));
+        amountToRepay = termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId));
+
+        // if the loan is paid in full, give the excess and the collateral to the debtor
+        if (amountToRepay <= 0) {
+            borrowedToken.transfer(owner, borrowedToken.balanceOf(owner));
+            dai.transfer(owner, dai.balanceOf(owner));
+            return amountRepaid;
+        }
+
+        uint256 daiToConvert;
+
+        (, slippage) = kyber.getExpectedRate(dai, borrowedToken, amountToRepay);
+        daiToConvert = PRECISION.mul(amountToRepay).div(slippage);
+
+        if (daiToConvert >= collateralInDAI) {
+            (, slippage) = kyber.getExpectedRate(dai, borrowedToken, daiToConvert);
+            amountRepaid = amountRepaid.add(kyber.tradeWithHint(dai, daiToConvert, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
+            collateralInDAI = collateralInDAI.sub(daiToConvert);
+            dai.transfer(owner, dai.balanceOf(owner));
+            return amountRepaid;
+        }
+
+        (, slippage) = kyber.getExpectedRate(dai, borrowedToken, collateralInDAI);
+        amountRepaid = amountRepaid.add(kyber.tradeWithHint(dai, collateralInDAI, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
+        collateralInDAI = collateralInDAI.sub(collateralInDAI);
+        dai.transfer(owner, dai.balanceOf(owner));
         return amountRepaid;
     }
 }
