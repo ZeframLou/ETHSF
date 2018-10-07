@@ -18,8 +18,14 @@ contract Portfolio is Ownable {
     uint256 public constant MAX_AMOUNT = 10 ** 28;
 
     address public borrowedTokenAddress;
-    address[] public assetList;
+
+    // holds the list of assets the manager wants to invest in
+    address[] public assetList; 
+
+    // holds the relative proportion of each assets the manager wants to invest in
     uint256[] public fractionList;
+
+    // holds the amount of the assets the user chose to invest in
     uint256[] public assetAmountList;
 
     KyberNetworkProxyInterface public kyber;
@@ -46,6 +52,7 @@ contract Portfolio is Ownable {
         bytes32[3] signaturesR,
         bytes32[3] signaturesS
     ) public onlyOwner {
+
         borrowedTokenAddress = orderAddresses[4];
         borrowedToken = ERC20(borrowedTokenAddress);
         uint256 beforeTokenBalance = borrowedToken.balanceOf(this);
@@ -66,4 +73,6 @@ contract Portfolio is Ownable {
                 slippage, 0, hint));
         }
     }
+
+    
 }
