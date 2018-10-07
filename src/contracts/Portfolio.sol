@@ -16,6 +16,7 @@ contract Portfolio is Ownable {
     address public constant REPAYMENT_ROUTER = 0x0;
     address public constant TERMS_CONTRACT = 0x0;
     address public constant DAI_ADDRESS = 0x0;
+    address public constant TOKEN_PROXY = 0x0;
     uint256 public constant PRECISION = 10 ** 18;
     uint256 public constant MAX_AMOUNT = 10 ** 28;
 
@@ -91,6 +92,7 @@ contract Portfolio is Ownable {
             uint256 slippage;
             uint256 srcAmount = receivedLoan.mul(fractionList[i]).div(PRECISION);
             (,slippage) = kyber.getExpectedRate(borrowedToken, ERC20(assetList[i]), srcAmount);
+            borrowedToken.approve(KYBER, srcAmount);
             assetAmountList.push(kyber.tradeWithHint(borrowedToken, srcAmount, ERC20(assetList[i]), this, MAX_AMOUNT,
                 slippage, 0, hint));
         }
@@ -112,43 +114,50 @@ contract Portfolio is Ownable {
         for (uint256 i = 0; i < assetList.length; i++) {
             uint256 slippage;
             (, slippage) = kyber.getExpectedRate(ERC20(assetList[i]), borrowedToken, assetAmountList[i]);
+            ERC20(assetList[i]).approve(KYBER, assetAmountList[i]);
             kyber.tradeWithHint(ERC20(assetList[i]), assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
         }
 
-        amountRepaid = repaymentRouter.repay(
-            agreementId,
-            termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)),
-            creditorAddress);
-
+        // pay back loan
         amountToRepay = termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId));
-
-        // if the loan is paid in full, give the excess and the collateral to the debtor
-        if (amountToRepay <= 0) {
-            borrowedToken.transfer(owner, borrowedToken.balanceOf(owner));
-            dai.transfer(owner, dai.balanceOf(owner));
-            return amountRepaid;
-        }
-
-        uint256 daiToConvert;
-
-        (, slippage) = kyber.getExpectedRate(dai, borrowedToken, amountToRepay);
-        daiToConvert = PRECISION.mul(amountToRepay).div(slippage);
+        borrowedToken.approve(TOKEN_PROXY, amountToRepay);
         
+        if (amountToRepay <= borrowedToken.balanceOf(this)) {
+            // have enough to repay
+            amountRepaid = repaymentRouter.repay(
+                agreementId,
+                amountToRepay,
+                creditorAddress);
+            require(amountRepaid > 0);
 
-        if (daiToConvert <= collateralInDAI) {
-            (, slippage) = kyber.getExpectedRate(dai, borrowedToken, daiToConvert);
-            kyber.tradeWithHint(dai, daiToConvert, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
-            amountRepaid = amountRepaid.add(repaymentRouter.repay(agreementId, amountToRepay, creditorAddress));
-            collateralInDAI = collateralInDAI.sub(daiToConvert);
-            dai.transfer(owner, dai.balanceOf(owner));
+            // send leftover tokens to owner
+            borrowedToken.transfer(owner, borrowedToken.balanceOf(this));
+            dai.transfer(owner, dai.balanceOf(this));
             return amountRepaid;
         }
-
+        
+        // don't have enough to repay loan, sell collateral
         (, slippage) = kyber.getExpectedRate(dai, borrowedToken, collateralInDAI);
-        kyber.tradeWithHint(dai, collateralInDAI, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
-        amountRepaid = amountRepaid.add(repaymentRouter.repay(agreementId, slippage.mul(collateralInDAI).div(PRECISION), creditorAddress));
-        collateralInDAI = collateralInDAI.sub(collateralInDAI);
-        dai.transfer(owner, dai.balanceOf(owner));
+        uint256 daiToConvert = PRECISION.mul(amountToRepay.sub(borrowedToken.balanceOf(this))).div(slippage);
+        
+        if (daiToConvert > collateralInDAI) {
+            // collateral not enough to repay loan
+            daiToConvert = collateralInDAI;
+        }
+
+        // sell collateral
+        (, slippage) = kyber.getExpectedRate(dai, borrowedToken, daiToConvert);
+        dai.approve(KYBER, daiToConvert);
+        kyber.tradeWithHint(dai, daiToConvert, borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
+
+        // repay loan
+        borrowedToken.approve(TOKEN_PROXY, amountToRepay);
+        amountRepaid = repaymentRouter.repay(agreementId, amountToRepay, creditorAddress);
+        require(amountRepaid > 0);
+
+        // send leftover tokens to owner
+        borrowedToken.transfer(owner, dai.balanceOf(this));
+        dai.transfer(owner, dai.balanceOf(this));
         return amountRepaid;
     }
 }
