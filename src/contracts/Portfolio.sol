@@ -2,6 +2,7 @@ pragma solidity ^0.4.24;
 
 import "./dharma/DebtKernel.sol";
 import "./dharma/RepaymentRouter.sol";
+import "./dharma/TermsContract.sol";
 import "./kyber/KyberNetworkProxyInterface.sol";
 import "zeppelin/ownership/Ownable.sol";
 import "zeppelin/math/SafeMath.sol";
@@ -11,36 +12,39 @@ contract Portfolio is Ownable {
     using SafeMath for uint256;
 
     address public constant KYBER = 0x0;
-    address public constant TERMS_CONTRACT = 0x0;
     address public constant DEBT_KERNEL = 0x0;
     address public constant REPAYMENT_ROUTER = 0x0;
+    address public constant TERMS_CONTRACT = 0x0;
     uint256 public constant PRECISION = 10 ** 18;
     uint256 public constant MAX_AMOUNT = 10 ** 28;
 
+    address public termsContractAddress;
     address public borrowedTokenAddress;
+
+    address public creditorAddress;
 
     // holds the list of assets the manager wants to invest in
     address[] public assetList; 
 
-    // holds the relative proportion of each assets the manager wants to invest in
-    uint256[] public fractionList;
-
     // holds the amount of the assets the user chose to invest in
     uint256[] public assetAmountList;
+    bytes32 public agreementId;
 
     KyberNetworkProxyInterface public kyber;
     DebtKernal public debtKernel;
     RepaymentRouter public repaymentRouter;
+    TermsContract public termsContract;
 
     ERC20 public borrowedToken;
 
     constructor (address[] _assetList, uint256[] _fractionList) public {
         assetList = _assetList;
         fractionList = _fractionList;
-        
+
         kyber = KyberNetworkProxyInterface(KYBER);
         debtKernel = DebtKernel(DEBT_KERNEL);
         repaymentRouter = RepaymentRouter(REPAYMENT_ROUTER);
+        termsContract = TermsContract(TERMS_CONTRACT);
     }
 
     function startPortfolio(
@@ -52,27 +56,61 @@ contract Portfolio is Ownable {
         bytes32[3] signaturesR,
         bytes32[3] signaturesS
     ) public onlyOwner {
+        if (termsContractAddress != address(0)) {
+            // check if the previous loan has ended
+            require(termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) == 0);
+        }
 
+        // initialize terms related contracts
+        termsContractAddress = orderAddresses[3];
+        termsContract = TermsContract(termsContractAddress);
         borrowedTokenAddress = orderAddresses[4];
         borrowedToken = ERC20(borrowedTokenAddress);
-        uint256 beforeTokenBalance = borrowedToken.balanceOf(this);
+        creditorAddress = creditor;
 
         // fill debt order and get funds
-        bytes32 agreementId = debtKernel.fillDebtOrder(creditor, orderAddresses, orderValues, orderBytes32, signaturesV, signaturesR, signaturesS);
+        uint256 beforeTokenBalance = borrowedToken.balanceOf(this);
+        agreementId = debtKernel.fillDebtOrder(creditor, orderAddresses, orderValues, orderBytes32, signaturesV, signaturesR, signaturesS);
 
         // calculate received loan
         uint256 receivedLoan = borrowedToken.balanceOf(this).sub(beforeTokenBalance);
 
         // buy tokens using Kyber
         bytes memory hint;
+        delete assetAmountList;
         for (uint256 i = 0; i < assetList.length; i++) {
             uint256 slippage;
             uint256 srcAmount = receivedLoan.mul(fractionList[i]).div(PRECISION);
             (,slippage) = getExpectedRate(borrowedToken, assetList[i], srcAmount);
-            assetAmountList.push(tradeWithHint(borrowedToken, srcAmount, components[i], this, MAX_AMOUNT,
+            assetAmountList.push(tradeWithHint(borrowedToken, srcAmount, assetList[i], this, MAX_AMOUNT,
                 slippage, 0, hint));
         }
     }
 
+    function endPortfolio() public returns (uint256 _amountRepaid) {
+
+        // check if the amount to repay is > 0 and the time is between loan called and loan end period
+        require(termsContract.registerTermStart(agreementId, this) && 
+            termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) != 0 && 
+            now <= termsContract.getTermEndTimestamp());
+        
+        bytes memory hint;
+        uint256 amountRedeemed;
+        uint256 amountRepaid;
+
+        // sell all assets into the token owed to the creditor
+        for (uint256 i = 0; i < assetList.length; i++) {
+            uint256 slippage;
+            (, slippage) = getExpectedRate(assetList[i], borrowedToken, assetAmountList[i]);
+            amountRedeemed += tradeWithHint(assetList[i], assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
+        }
+
+        // if redeemed amount is enough to pay the creditor, pay the creditor the owed amount and pay the debtor the excess
+        amountRepaid = repaymentRouter.repay(agreementId, amountRedeemed, creditorAddress);
+        // pay the debtor the excess amount
+        borrowedToken.transfer(owner, borrowedToken.balanceOf(owner));
+        return amountRepaid;
+        
+    }
     
 }
