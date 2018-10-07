@@ -11,12 +11,12 @@ import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 contract Portfolio is Ownable {
     using SafeMath for uint256;
 
-    address public constant KYBER = 0x0;
-    address public constant DEBT_KERNEL = 0x0;
-    address public constant REPAYMENT_ROUTER = 0x0;
-    address public constant TERMS_CONTRACT = 0x0;
-    address public constant DAI_ADDRESS = 0x0;
-    address public constant TOKEN_PROXY = 0x0;
+    address public constant KYBER = 0x7e6b8b9510D71BF8EF0f893902EbB9C865eEF4Df;
+    address public constant DEBT_KERNEL = 0x755e131019e5ab3e213dc269a4020e3e82e06e20;
+    address public constant REPAYMENT_ROUTER = 0x0688659d5e36896da7e5d44ebe3e10aa9d2c9968;
+    address public constant TERMS_CONTRACT = 0x4cad7ad79464628c07227928c851d3bc5ef3da0c;
+    address public constant DAI_ADDRESS = 0x8870946B0018E2996a7175e8380eb0d43dD09EFE; // actually OMG, same for demo purposes
+    address public constant TOKEN_PROXY = 0x668beab2e4dfec1d8c0a70fb5e52987cb22c2f1a;
     uint256 public constant PRECISION = 10 ** 18;
     uint256 public constant MAX_AMOUNT = 10 ** 28;
 
@@ -55,8 +55,6 @@ contract Portfolio is Ownable {
         repaymentRouter = RepaymentRouter(REPAYMENT_ROUTER);
         termsContract = TermsContract(TERMS_CONTRACT);
         dai = ERC20(DAI_ADDRESS);
-
-        require(dai.transferFrom(msg.sender, this, _collateralInDAI));
     }
 
     function startPortfolio(
@@ -71,7 +69,10 @@ contract Portfolio is Ownable {
         require(!hasStarted);
         hasStarted = true;
 
-        // initialize terms related contracts
+        // transfer collateral
+        require(dai.transferFrom(owner, this, collateralInDAI));
+
+        // initialize contracts
         termsContractAddress = orderAddresses[3];
         termsContract = TermsContract(termsContractAddress);
         borrowedTokenAddress = orderAddresses[4];
