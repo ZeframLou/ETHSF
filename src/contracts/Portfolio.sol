@@ -22,7 +22,6 @@ contract Portfolio is Ownable {
 
     address public termsContractAddress;
     address public borrowedTokenAddress;
-
     address public creditorAddress;
 
     // holds the list of assets the manager wants to invest in
@@ -68,6 +67,8 @@ contract Portfolio is Ownable {
     ) public onlyOwner {
         require(!hasStarted);
         hasStarted = true;
+
+        require(orderAddresses[1] == owner); // debtor == owner
 
         // transfer collateral
         require(dai.transferFrom(owner, this, collateralInDAI));
