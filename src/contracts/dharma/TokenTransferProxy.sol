@@ -20,8 +20,8 @@ pragma solidity 0.4.18;
 
 import "./DebtRegistry.sol";
 import { PermissionsLib, PermissionEvents } from "./libraries/PermissionsLib.sol";
-import "zeppelin-solidity/contracts/lifecycle/Pausable.sol";
-import "zeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "zeppelin/contracts/lifecycle/Pausable.sol";
+import "zeppelin/contracts/token/ERC20/ERC20.sol";
 
 
 /**

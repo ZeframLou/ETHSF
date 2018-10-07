@@ -24,9 +24,9 @@ import "./ERC165.sol";
 import { PermissionsLib, PermissionEvents } from "./libraries/PermissionsLib.sol";
 
 // External dependencies.
-import "zeppelin-solidity/contracts/lifecycle/Pausable.sol";
-import "zeppelin-solidity/contracts/token/ERC721/ERC721Token.sol";
-import "zeppelin-solidity/contracts/token/ERC20/ERC20.sol";
+import "zeppelin/contracts/lifecycle/Pausable.sol";
+import "zeppelin/contracts/token/ERC721/ERC721Token.sol";
+import "zeppelin/contracts/token/ERC20/ERC20.sol";
 
 
 /**

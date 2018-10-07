@@ -19,8 +19,8 @@
 pragma solidity 0.4.18;
 
 import { PermissionsLib, PermissionEvents } from "./libraries/PermissionsLib.sol";
-import "zeppelin-solidity/contracts/math/SafeMath.sol";
-import "zeppelin-solidity/contracts/lifecycle/Pausable.sol";
+import "zeppelin/contracts/math/SafeMath.sol";
+import "zeppelin/contracts/lifecycle/Pausable.sol";
 
 
 /**
