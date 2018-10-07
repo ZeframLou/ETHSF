@@ -104,7 +104,6 @@ contract Portfolio is Ownable {
         );
         
         bytes memory hint;
-        uint256 amountRedeemed;
         uint256 amountRepaid;
         uint256 amountToRepay;
         
@@ -113,7 +112,7 @@ contract Portfolio is Ownable {
         for (uint256 i = 0; i < assetList.length; i++) {
             uint256 slippage;
             (, slippage) = kyber.getExpectedRate(ERC20(assetList[i]), borrowedToken, assetAmountList[i]);
-            amountRedeemed = amountRedeemed.add(kyber.tradeWithHint(ERC20(assetList[i]), assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
+            kyber.tradeWithHint(ERC20(assetList[i]), assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
         }
 
         amountRepaid = repaymentRouter.repay(
