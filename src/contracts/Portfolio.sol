@@ -26,6 +26,9 @@ contract Portfolio is Ownable {
     // holds the list of assets the manager wants to invest in
     address[] public assetList; 
 
+    // holds the list of proportions that each asset takes in the portfolio
+    uint256[] public fractionList;
+
     // holds the amount of the assets the user chose to invest in
     uint256[] public assetAmountList;
     bytes32 public agreementId;
@@ -58,7 +61,10 @@ contract Portfolio is Ownable {
     ) public onlyOwner {
         if (termsContractAddress != address(0)) {
             // check if the previous loan has ended
-            require(termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) == 0);
+            require(
+                termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) == 0 &&
+                now <= termsContract.getTermEndTimestamp(agreementId)
+            );
         }
 
         // initialize terms related contracts
@@ -90,9 +96,10 @@ contract Portfolio is Ownable {
     function endPortfolio() public returns (uint256 _amountRepaid) {
 
         // check if the amount to repay is > 0 and the time is between loan called and loan end period
-        require(termsContract.registerTermStart(agreementId, this) && 
+        require(
             termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) != 0 && 
-            now <= termsContract.getTermEndTimestamp());
+            now <= termsContract.getTermEndTimestamp(agreementId)
+        );
         
         bytes memory hint;
         uint256 amountRedeemed;
@@ -101,16 +108,18 @@ contract Portfolio is Ownable {
         // sell all assets into the token owed to the creditor
         for (uint256 i = 0; i < assetList.length; i++) {
             uint256 slippage;
-            (, slippage) = kyber.getExpectedRate(assetList[i], borrowedToken, assetAmountList[i]);
-            amountRedeemed += kyber.tradeWithHint(assetList[i], assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint);
+            (, slippage) = kyber.getExpectedRate(ERC20(assetList[i]), borrowedToken, assetAmountList[i]);
+            amountRedeemed = amountRedeemed.add(kyber.tradeWithHint(ERC20(assetList[i]), assetAmountList[i], borrowedToken, this, MAX_AMOUNT, slippage, 0, hint));
         }
 
         // if redeemed amount is enough to pay the creditor, pay the creditor the owed amount and pay the debtor the excess
-        amountRepaid = repaymentRouter.repay(agreementId, amountRedeemed, creditorAddress);
+        amountRepaid = repaymentRouter.repay(
+            agreementId,
+            termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)),
+            creditorAddress);
+
         // pay the debtor the excess amount
         borrowedToken.transfer(owner, borrowedToken.balanceOf(owner));
         return amountRepaid;
-        
     }
-    
 }
