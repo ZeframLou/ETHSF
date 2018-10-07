@@ -20,6 +20,7 @@ contract Portfolio is Ownable {
     address public borrowedTokenAddress;
     address[] public assetList;
     uint256[] public fractionList;
+    uint256[] public assetAmountList;
 
     KyberNetworkProxyInterface public kyber;
     DebtKernal public debtKernel;
@@ -27,10 +28,10 @@ contract Portfolio is Ownable {
 
     ERC20 public borrowedToken;
 
-    constructor (address _borrowedToken) public {
-        borrowedTokenAddress = _borrowedToken;
-        borrowedToken = ERC20(_borrowedToken);
-
+    constructor (address[] _assetList, uint256[] _fractionList) public {
+        assetList = _assetList;
+        fractionList = _fractionList;
+        
         kyber = KyberNetworkProxyInterface(KYBER);
         debtKernel = DebtKernel(DEBT_KERNEL);
         repaymentRouter = RepaymentRouter(REPAYMENT_ROUTER);
@@ -45,6 +46,8 @@ contract Portfolio is Ownable {
         bytes32[3] signaturesR,
         bytes32[3] signaturesS
     ) public onlyOwner {
+        borrowedTokenAddress = orderAddresses[4];
+        borrowedToken = ERC20(borrowedTokenAddress);
         uint256 beforeTokenBalance = borrowedToken.balanceOf(this);
 
         // fill debt order and get funds
@@ -55,14 +58,12 @@ contract Portfolio is Ownable {
 
         // buy tokens using Kyber
         bytes memory hint;
-        uint256[] destAmountList;
         for (uint256 i = 0; i < assetList.length; i++) {
             uint256 slippage;
             uint256 srcAmount = receivedLoan.mul(fractionList[i]).div(PRECISION);
             (,slippage) = getExpectedRate(borrowedToken, assetList[i], srcAmount);
-            destAmountList.push(tradeWithHint(borrowedToken, srcAmount, components[i], this, MAX_AMOUNT,
+            assetAmountList.push(tradeWithHint(borrowedToken, srcAmount, components[i], this, MAX_AMOUNT,
                 slippage, 0, hint));
         }
-        
     }
 }
