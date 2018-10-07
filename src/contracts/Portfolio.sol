@@ -4,9 +4,9 @@ import "./dharma/DebtKernel.sol";
 import "./dharma/RepaymentRouter.sol";
 import "./dharma/TermsContract.sol";
 import "./kyber/KyberNetworkProxyInterface.sol";
-import "zeppelin/ownership/Ownable.sol";
-import "zeppelin/math/SafeMath.sol";
 import "./kyber/ERC20Interface.sol";
+import "openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "openzeppelin-solidity/contracts/math/SafeMath.sol";
 
 contract Portfolio is Ownable {
     using SafeMath for uint256;
@@ -25,7 +25,7 @@ contract Portfolio is Ownable {
     bytes32 public agreementId;
 
     KyberNetworkProxyInterface public kyber;
-    DebtKernal public debtKernel;
+    DebtKernel public debtKernel;
     RepaymentRouter public repaymentRouter;
     TermsContract public termsContract;
 
@@ -73,8 +73,8 @@ contract Portfolio is Ownable {
         for (uint256 i = 0; i < assetList.length; i++) {
             uint256 slippage;
             uint256 srcAmount = receivedLoan.mul(fractionList[i]).div(PRECISION);
-            (,slippage) = getExpectedRate(borrowedToken, assetList[i], srcAmount);
-            assetAmountList.push(tradeWithHint(borrowedToken, srcAmount, components[i], this, MAX_AMOUNT,
+            (,slippage) = kyber.getExpectedRate(borrowedToken, ERC20(assetList[i]), srcAmount);
+            assetAmountList.push(kyber.tradeWithHint(borrowedToken, srcAmount, ERC20(assetList[i]), this, MAX_AMOUNT,
                 slippage, 0, hint));
         }
     }
