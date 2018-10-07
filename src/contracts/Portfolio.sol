@@ -15,6 +15,7 @@ contract Portfolio is Ownable {
     address public constant DEBT_KERNEL = 0x0;
     address public constant REPAYMENT_ROUTER = 0x0;
     address public constant TERMS_CONTRACT = 0x0;
+    address public constant DAI_ADDRESS = 0x0;
     uint256 public constant PRECISION = 10 ** 18;
     uint256 public constant MAX_AMOUNT = 10 ** 28;
 
@@ -31,6 +32,7 @@ contract Portfolio is Ownable {
 
     // holds the amount of the assets the user chose to invest in
     uint256[] public assetAmountList;
+    uint256 public collateralInDAI;
     bytes32 public agreementId;
     bool public hasStarted;
 
@@ -40,15 +42,20 @@ contract Portfolio is Ownable {
     TermsContract public termsContract;
 
     ERC20 public borrowedToken;
+    ERC20 public dai;
 
-    constructor (address[] _assetList, uint256[] _fractionList) public {
+    constructor (address[] _assetList, uint256[] _fractionList, uint256 _collateralInDAI) public {
         assetList = _assetList;
         fractionList = _fractionList;
+        collateralInDAI = _collateralInDAI;
 
         kyber = KyberNetworkProxyInterface(KYBER);
         debtKernel = DebtKernel(DEBT_KERNEL);
         repaymentRouter = RepaymentRouter(REPAYMENT_ROUTER);
         termsContract = TermsContract(TERMS_CONTRACT);
+        dai = ERC20(DAI_ADDRESS);
+
+        require(dai.transferFrom(msg.sender, this, _collateralInDAI));
     }
 
     function startPortfolio(
