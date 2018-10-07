@@ -32,6 +32,7 @@ contract Portfolio is Ownable {
     // holds the amount of the assets the user chose to invest in
     uint256[] public assetAmountList;
     bytes32 public agreementId;
+    bool public hasStarted;
 
     KyberNetworkProxyInterface public kyber;
     DebtKernel public debtKernel;
@@ -59,13 +60,8 @@ contract Portfolio is Ownable {
         bytes32[3] signaturesR,
         bytes32[3] signaturesS
     ) public onlyOwner {
-        if (termsContractAddress != address(0)) {
-            // check if the previous loan has ended
-            require(
-                termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) == 0 &&
-                now <= termsContract.getTermEndTimestamp(agreementId)
-            );
-        }
+        require(!hasStarted);
+        hasStarted = true;
 
         // initialize terms related contracts
         termsContractAddress = orderAddresses[3];
@@ -94,7 +90,6 @@ contract Portfolio is Ownable {
     }
 
     function endPortfolio() public returns (uint256 _amountRepaid) {
-
         // check if the amount to repay is > 0 and the time is between loan called and loan end period
         require(
             termsContract.getExpectedRepaymentValue(agreementId, termsContract.getTermEndTimestamp(agreementId)) != 0 && 
